@@ -4,6 +4,9 @@ import services.prompts
 import services.llm
 import asyncio
 
+from services import prompts
+from helpers import util, chat as chat_service
+
 st.set_page_config(
     page_title="Generate Code",
     page_icon="📄",
@@ -145,9 +148,58 @@ with tab2:
 
 with tab3:
     st.subheader("Modify Code")
-    # User inputs for code modification
-    instructions_modify = st.text_area("Enter modification instructions", key='instructions_modify', height=150)
-    conversation_history = st.text_area("Conversation history", key='conversation_history', height=150)
-    if st.button("Submit Modification Request", key='submit_modify'):
-        # Placeholder for processing and displaying the modified code
-        st.write("Modification request submitted. Processing...")
+
+    column_chat, column_code = st.columns([1, 1])
+
+    with column_code:
+        # Every time we reload the page, make a new editor with a new id
+        CODE_MODIFY_EDITOR_KEY_PREFIX = "ace-editor-code_modify"
+        if 'editor_id_code_modify' not in st.session_state:
+            st.session_state.editor_id_code_modify = 0
+
+        # Empty code on first run
+        if "code_modify" not in st.session_state:
+            st.session_state.code_modify = ""
+
+        # This is how we update code in the editor - saving it in a session variable "code".
+        INITIAL_CODE_TO_MODIFY = st.session_state.code_modify
+
+        code_modify = st_ace(
+            value=INITIAL_CODE_TO_MODIFY,
+            language=sidebar_language,
+            placeholder="Enter your code to be modifyged here...",
+            theme=sidebar_theme,
+            font_size=sidebar_font_size,
+            tab_size=sidebar_tab_size,
+            wrap=sidebar_wrap,
+            show_gutter=sidebar_gutter,
+            show_print_margin=sidebar_print_margin,
+            auto_update=sidebar_auto_update,
+            readonly=sidebar_readonly,
+            key=f"{CODE_MODIFY_EDITOR_KEY_PREFIX}-{st.session_state.editor_id_code_modify}",
+            height=1000,
+            min_lines=12,
+            max_lines=20
+        )
+
+    # Ensure the session state is initialized
+    if "messages" not in st.session_state:
+        initial_messages = [{"role": "system",
+                             "content": prompts.modify_code_chat_system_prompt()}]
+        st.session_state.messages = initial_messages
+
+    with column_chat:
+
+        # Print all messages in the session state
+        for message in [m for m in st.session_state.messages if m["role"] != "system"]:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        # React to the user prompt
+        if prompt := st.chat_input("Ask me what to modify in the code..."):
+            chat_prompt = services.prompts.modify_code_chat_prompt(code_modify, prompt)
+
+            st.session_state.messages.append({"role": "user", "content": chat_prompt})
+
+            asyncio.run(chat_service.chat(st.session_state.messages, prompt, util))
+
