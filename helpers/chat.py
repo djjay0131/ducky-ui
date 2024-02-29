@@ -1,17 +1,23 @@
 import streamlit as st
+import helpers.util as util
 
 # Chat with the LLM, and update the messages list with the response.
 # Handles the chat UI and partial responses along the way.
-async def chat(messages, prompt, util):
+async def chat(messages, prompt, language):
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
 
-        messages = await util.run_conversation(messages, message_placeholder)
-        st.session_state.messages = messages
-    return messages
+        messages, code = await util.run_conversation(messages, message_placeholder,
+                                                     f"```{language}", "```")
+        st.session_state.code_modify = code
+        # Assuming you want to do something with the extracted code here
+        # For example, display the code in a code block
+
+    return messages, code
+
 
 async def code_chat(messages, prompt, util):
     """

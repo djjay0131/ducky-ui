@@ -7,14 +7,15 @@ import asyncio
 from services import prompts
 from helpers import util, chat as chat_service
 
+import helpers.sidebar
+import helpers.util
+
 st.set_page_config(
     page_title="Generate Code",
     page_icon="📄",
     layout="wide"
 )
 
-import helpers.sidebar
-import helpers.util
 
 helpers.sidebar.show()
 
@@ -28,7 +29,14 @@ def reset_page():
     st.session_state.code_review = ""  # Reset the code in the editor
     st.session_state.editor_id_code_debug = st.session_state.editor_id_code_debug + 1
     st.session_state.code_debug = ""  # Reset the code in debug editor
-
+    st.session_state.editor_id_code_modify = st.session_state.editor_id_code_modify + 1
+    st.session_state.code_modify = ""  # Reset the code in debug editor
+    st.session_state.messages = []  # Reset the chat messages
+    st.session_state.review_messages = []  # Reset the review messages
+    st.session_state.debug_messages = []  # Reset the debug messages
+    st.session_state.error_string = ""  # Reset the error string
+    review_container.empty()
+    debug_container.empty()
 
 # Add a sidebar option to select a learner level
 st.sidebar.write("### Chat Response Settings")
@@ -91,14 +99,24 @@ with tab1:
 
     code_review_button = st.button("Get Review", key='get_review')
 
-    if code_review_button:
-        advice = st.markdown("### Ducky Teaching...")
-        learning_prompt = services.prompts.code_review_prompt(learner_level, code_review)
-        messages = services.llm.create_conversation_starter(services.prompts.system_learning_prompt())
-        messages.append({"role": "user", "content": learning_prompt})
-        asyncio.run(helpers.util.run_conversation(messages, advice))
-    else:
-        st.write("Review response will appear here")
+    st.subheader("Ducky Review")
+
+    if "review_messages" not in st.session_state:
+        st.session_state.review_messages = [] # Initialize the messages list
+
+    review_container = st.container(height=500)
+
+    with review_container:
+        advice = st.empty()
+        # Print th assistant messages session state
+        for message in [m for m in st.session_state.review_messages if m["role"] == "assistant"]:
+            advice = st.markdown(message["content"])
+
+        if code_review_button:
+            learning_prompt = services.prompts.code_review_prompt(learner_level, code_review)
+            review_messages = services.llm.create_conversation_starter(services.prompts.system_learning_prompt())
+            review_messages.append({"role": "user", "content": learning_prompt})
+            st.session_state.review_messages, review_code = asyncio.run(helpers.util.run_conversation(review_messages, advice))
 
 with tab2:
     st.subheader("Debug Code")
@@ -137,21 +155,32 @@ with tab2:
 
     code_debug_button = st.button("Debug Code", key='debug_code')
 
-    if code_debug_button:
-        debug_advice = st.markdown("### Ducky Debugging...")
-        learning_prompt = services.prompts.code_debug_prompt(learner_level, code_debug, error_string)
-        messages = services.llm.create_conversation_starter(services.prompts.system_learning_prompt())
-        messages.append({"role": "user", "content": learning_prompt})
-        asyncio.run(helpers.util.run_conversation(messages, debug_advice))
-    else:
-        st.write("Debug response will appear here")
+    st.subheader("Ducky Debugging")
+
+    if "debug_messages" not in st.session_state:
+        st.session_state.debug_messages = [] # Initialize the messages list
+
+    debug_container = st.container(height=500)
+    with debug_container:
+        debug_advice = st.empty()
+        # Print th assistant messages session state
+        for message in [m for m in st.session_state.debug_messages if m["role"] == "assistant"]:
+            debug_advice = st.markdown(message["content"])
+
+        if code_debug_button:
+
+            debug_advice = st.markdown("### Ducky Debugging...")
+            learning_prompt = services.prompts.code_debug_prompt(learner_level, code_debug, error_string)
+            messages = services.llm.create_conversation_starter(services.prompts.system_learning_prompt())
+            messages.append({"role": "user", "content": learning_prompt})
+            st.session_state.debug_messages, debug_code = asyncio.run(helpers.util.run_conversation(messages, debug_advice))
 
 with tab3:
-    st.subheader("Modify Code")
 
-    column_chat, column_code = st.columns([1, 1])
+    code_column, chat_column = st.columns([3, 2])
 
-    with column_code:
+    with code_column:
+        st.subheader("Code")
         # Every time we reload the page, make a new editor with a new id
         CODE_MODIFY_EDITOR_KEY_PREFIX = "ace-editor-code_modify"
         if 'editor_id_code_modify' not in st.session_state:
@@ -167,7 +196,7 @@ with tab3:
         code_modify = st_ace(
             value=INITIAL_CODE_TO_MODIFY,
             language=sidebar_language,
-            placeholder="Enter your code to be modifyged here...",
+            placeholder="Enter your code to be modified here...",
             theme=sidebar_theme,
             font_size=sidebar_font_size,
             tab_size=sidebar_tab_size,
@@ -182,13 +211,20 @@ with tab3:
             max_lines=20
         )
 
-    # Ensure the session state is initialized
-    if "messages" not in st.session_state:
-        initial_messages = [{"role": "system",
-                             "content": prompts.modify_code_chat_system_prompt()}]
-        st.session_state.messages = initial_messages
+    with chat_column:
 
-    with column_chat:
+        st.subheader("Chat with Ducky")
+
+        # Ensure the session state is initialized
+        if "messages" not in st.session_state:
+            initial_messages = [{"role": "system",
+                                 "content": prompts.modify_code_chat_system_prompt()}]
+            st.session_state.messages = initial_messages
+        prompt = st.chat_input("Ask me what to modify in the code...")
+
+    st.subheader("Ducky Response")
+
+    with st.container(height=500):
 
         # Print all messages in the session state
         for message in [m for m in st.session_state.messages if m["role"] != "system"]:
@@ -196,10 +232,15 @@ with tab3:
                 st.markdown(message["content"])
 
         # React to the user prompt
-        if prompt := st.chat_input("Ask me what to modify in the code..."):
-            chat_prompt = services.prompts.modify_code_chat_prompt(code_modify, prompt)
+        if prompt:
+            chat_prompt = services.prompts.modify_code_chat_prompt(prompt, code_modify, sidebar_language)
 
-            st.session_state.messages.append({"role": "user", "content": chat_prompt})
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            st.session_state.messages.append({"role": "system", "content": chat_prompt})
 
-            asyncio.run(chat_service.chat(st.session_state.messages, prompt, util))
+            st.session_state.messages, new_code = asyncio.run(
+                chat_service.chat(st.session_state.messages, prompt, sidebar_language))
 
+            st.session_state.code_modify = new_code
+            st.session_state.editor_id_code_modify = st.session_state.editor_id_code_modify + 1
+            st.rerun()

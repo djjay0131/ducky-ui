@@ -30,7 +30,7 @@ def code_review_prompt(learner_level: str, code: str) -> str:
 
     """
     return f"""
-    Forget all previous instructions.
+
     You are a chatbot named Ducky. You are assisting a user with their software development.
 
     The source code the user needs help with is provided below:
@@ -58,7 +58,7 @@ def code_debug_prompt(learner_level: str, code: str, error: str) -> str:
 
     """
     return f"""
-    Forget all previous instructions.
+
     You are a chatbot named Ducky. You are assisting a user with their software development.
 
     The source code the user needs help with is provided below:
@@ -117,29 +117,34 @@ def learning_prompt(learner_level: str, answer_type: str, topic: str) -> str:
     """
 
 
-def modify_code_chat_prompt(code_modify, prompt):
+def modify_code_chat_prompt(prompt, code, code_language):
     return f"""
-    Given the code below, you should provide a helpful response to the user advising them on how to modify the code to
-    achieve the requested change.
 
-        ```{code_modify}```
+    Given the code below, you should provide a helpful response to the user advising them on how to modify the code to
+    achieve the requested change.  If there is no code, then you should generate example code for the user.
+
+    The code provided should be {code_language} code. If the code is not in {code_language} code, you should refuse to
+    respond.  You should respond with {code_language} code.
+
+
+        ```{code}```
 
     The user has asked you to do the following:
 
-        ```{prompt}```
+        "{prompt}"
 
     Your response should include the following:
-        - A helpful response explaining the change required to the code to achieve the user's request.  This response
+        - A helpful response explaining the new code.  This response
         should be in markdown format.
-        - The code modified to achieve the requested change
-    """ + r"""
+        - The new code which achieves the requested change
+
     Your response should be in the following format:
 
-    First include the explanation of the change required in markdown format.
+    ## Explanation of the code
 
-    Then include the modified code in a code block like this:
+    ## Code
 
-    ```Python
-        { modified_code }
+    ```{code_language}
+        # place code here
     ```
     """
