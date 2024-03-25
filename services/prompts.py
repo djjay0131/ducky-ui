@@ -1,5 +1,26 @@
+import os
+import httpx
+import traceback
+import inspect
+
+def _get_prompt_content(display_name: str, default: str = "Prompt content not available") -> str:
+    url = f"http://{os.getenv('CODEPROMPTU_HOSTNAME')}:{os.getenv('CODEPROMPTU_PORT')}/private/prompt/name/{display_name}"
+
+    auth = (os.getenv("CODEPROMPTU_USERNAME"), os.getenv("CODEPROMPTU_PASSWORD"))
+
+    try:
+        with httpx.Client(auth=auth) as client:
+            response = client.get(url)
+            response.raise_for_status()
+            data = response.json()
+            return data.get("content", default)
+    except Exception:
+        traceback.print_exc()
+        return default
+
+
 def quick_chat_system_prompt() -> str:
-    return """
+    default = """
     Forget all previous instructions.
 
     You are a chatbot named Ducky. You are assisting a user with their software development.
@@ -8,9 +29,11 @@ def quick_chat_system_prompt() -> str:
 
     If the user asks you to do something that is not software engineering related, you should refuse to respond.
     """
+    display_name = inspect.currentframe().f_code.co_name
+    return _get_prompt_content(display_name, default)
 
 def modify_code_chat_system_prompt() -> str:
-    return f"""
+    default = f"""
 
     {quick_chat_system_prompt()}
 
@@ -19,6 +42,8 @@ def modify_code_chat_system_prompt() -> str:
     helpful response.  Your response should include the current code modified to achieve the requested change.
 
     """
+    display_name = inspect.currentframe().f_code.co_name
+    return _get_prompt_content(display_name, default)
 
 def code_review_prompt(learner_level: str, code: str) -> str:
     """
@@ -29,7 +54,7 @@ def code_review_prompt(learner_level: str, code: str) -> str:
     :return:  A string with the prompt
 
     """
-    return f"""
+    default = f"""
 
     You are a chatbot named Ducky. You are assisting a user with their software development.
 
@@ -47,6 +72,10 @@ def code_review_prompt(learner_level: str, code: str) -> str:
     Give this advice in markdown format.
 
     """
+    display_name = inspect.currentframe().f_code.co_name
+    return (_get_prompt_content(display_name, default)
+            .replace("{code}", code)
+            .replace("learner_level", learner_level))
 
 def code_debug_prompt(learner_level: str, code: str, error: str) -> str:
     """
@@ -57,7 +86,7 @@ def code_debug_prompt(learner_level: str, code: str, error: str) -> str:
     :return:  A string with the prompt
 
     """
-    return f"""
+    default = f"""
 
     You are a chatbot named Ducky. You are assisting a user with their software development.
 
@@ -78,11 +107,15 @@ def code_debug_prompt(learner_level: str, code: str, error: str) -> str:
     Give this advice in markdown format.
 
     """
-
+    display_name = inspect.currentframe().f_code.co_name
+    return (_get_prompt_content(display_name, default)
+            .replace("{code}", code)
+            .replace("learner_level", learner_level)
+            .replace("{error}", error))
 
 
 def system_learning_prompt() -> str:
-    return """
+    default = """
     You are assisting a user with their coding.
 
     Each time the user converses with you, make sure the context is software engineering,
@@ -91,10 +124,12 @@ def system_learning_prompt() -> str:
 
     If the user asks you to do something that is not software engineering, you should refuse to respond.
     """
+    display_name = inspect.currentframe().f_code.co_name
+    return _get_prompt_content(display_name, default)
 
 
 def learning_prompt(learner_level: str, answer_type: str, topic: str) -> str:
-    return f"""
+    default = f"""
     Please disregard any previous context.
 
     The topic at hand is ```{topic}```.
@@ -115,10 +150,15 @@ def learning_prompt(learner_level: str, answer_type: str, topic: str) -> str:
     Make sure your response is formatted in markdown format.
     Ensure that embedded formulae are quoted for good display.
     """
+    display_name = inspect.currentframe().f_code.co_name
+    return (_get_prompt_content(display_name, default)
+            .replace("{topic}", topic)
+            .replace("{answer_type}", answer_type)
+            .replace("learner_level", learner_level))
 
 
 def modify_code_chat_prompt(prompt, code, code_language):
-    return f"""
+    default = f"""
 
     Given the code below, you should provide a helpful response to the user advising them on how to modify the code to
     achieve the requested change.  If there is no code, then you should generate example code for the user.
@@ -148,3 +188,8 @@ def modify_code_chat_prompt(prompt, code, code_language):
         # place code here
     ```
     """
+    display_name = inspect.currentframe().f_code.co_name
+    return (_get_prompt_content(display_name, default)
+            .replace("{prompt}", prompt)
+            .replace("{code}", code)
+            .replace("{code_language}", code_language))

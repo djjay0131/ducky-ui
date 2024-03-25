@@ -171,9 +171,9 @@ with tab2:
 
             debug_advice = st.markdown("### Ducky Debugging...")
             learning_prompt = services.prompts.code_debug_prompt(learner_level, code_debug, error_string)
-            messages = services.llm.create_conversation_starter(services.prompts.system_learning_prompt())
-            messages.append({"role": "user", "content": learning_prompt})
-            st.session_state.debug_messages, debug_code = asyncio.run(helpers.util.run_conversation(messages, debug_advice))
+            debug_messages = services.llm.create_conversation_starter(services.prompts.system_learning_prompt())
+            debug_messages.append({"role": "user", "content": learning_prompt})
+            st.session_state.debug_messages, debug_code = asyncio.run(helpers.util.run_conversation(debug_messages, debug_advice))
 
 with tab3:
 
